@@ -1,0 +1,18 @@
+# Mengabaikan folder dataset
+/data/
+
+# Mengabaikan folder model AI (biasanya ukurannya ratusan MB hingga GB)
+/saved_models/
+
+
+# Mengabaikan catatan log (karena akan terus bertambah tiap kali program jalan)
+/logs/
+
+# Mengabaikan file temporary/cache bawaan Python (Best Practice)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Mengabaikan file environment/konfigurasi rahasia (jika nanti kamu buat)
+.env

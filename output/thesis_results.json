@@ -1,0 +1,33 @@
+{
+    "results": {
+        "baseline": {
+            "name": "Baseline (RGB Only)",
+            "accuracy": 99.50074887668497,
+            "precision": 1.0,
+            "recall": 0.9900149775336995,
+            "f1_score": 0.994982438534872,
+            "auc": 0.9988300125946877
+        },
+        "residual_spatial": {
+            "name": "Residual Spatial",
+            "accuracy": 99.72541188217673,
+            "precision": 1.0,
+            "recall": 0.9945082376435347,
+            "f1_score": 0.9972465581977472,
+            "auc": 0.9999705883012724
+        },
+        "residual_dct": {
+            "name": "Residual DCT",
+            "accuracy": 96.63005491762357,
+            "precision": 0.9533980582524272,
+            "recall": 0.9805292061907139,
+            "f1_score": 0.9667733202067438,
+            "auc": 0.9967649623916597
+        }
+    },
+    "ablation_study": {
+        "baseline_accuracy": 99.50074887668497,
+        "proposed_accuracy": null,
+        "improvement": null
+    }
+}
