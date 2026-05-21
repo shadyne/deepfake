@@ -32,15 +32,16 @@ class Config:
     
     # Training hyperparameters - IMPROVED
     BATCH_SIZE = 8
-    NUM_EPOCHS = 5
+    NUM_EPOCHS = 12
     LEARNING_RATE = 0.0001
     WEIGHT_DECAY = 1e-4
     USE_AMP = True
     
     # Model configuration
     BACKBONE = 'xception'
-    NUM_CLASSES = 2
+    NUM_CLASSES = 4
     PRETRAINED = True
+    
     
     # Image preprocessing
     IMAGE_SIZE = 224

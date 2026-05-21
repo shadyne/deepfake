@@ -1,23 +1,85 @@
-# Mengabaikan folder dataset
-/data/
-/IMSFD_DeepFake/
+# ============================================================
+#  Dataset — ukuran besar, tidak perlu di-commit
+# ============================================================
+data/
+IMSFD_DeepFake/
 
-# Mengabaikan folder model AI (biasanya ukurannya ratusan MB hingga GB)
-/saved_models/
+# ============================================================
+#  Model & checkpoint — file binary besar (.pth, .onnx)
+# ============================================================
+saved_models/
+*.pth
+*.pt
+*.onnx
+*.ckpt
 
+# ============================================================
+#  Output hasil training — gambar & metrik bisa di-regenerate
+# ============================================================
+output/
+training_progress.json
 
-# Mengabaikan catatan log (karena akan terus bertambah tiap kali program jalan)
-/logs/
+# ============================================================
+#  Log & TensorBoard
+# ============================================================
+logs/
+runs/
 
-# Mengabaikan file temporary/cache bawaan Python (Best Practice)
+# ============================================================
+#  Python cache & build artifacts
+# ============================================================
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.pdb
+*.egg-info/
+dist/
+build/
+.eggs/
 
-# Mengabaikan file environment/konfigurasi rahasia (jika nanti kamu buat)
+# ============================================================
+#  Virtual environment
+# ============================================================
+venv/
+.venv/
+env/
+ENV/
+
+# ============================================================
+#  IDE / editor
+# ============================================================
+.vscode/
+.idea/
+*.suo
+*.user
+.vs/
+
+# ============================================================
+#  OS generated
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+#  Jupyter
+# ============================================================
+.ipynb_checkpoints/
+*.ipynb
+
+# ============================================================
+#  File arsip & dokumen besar
+# ============================================================
+*.rar
+*.zip
+*.7z
+*.tar.gz
+*.pdf
+
+# ============================================================
+#  Environment / secrets
+# ============================================================
 .env
-
-/venv/
-
-.vscode
+.env.*
+secrets.py
