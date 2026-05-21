@@ -13,15 +13,7 @@ class ResidualNoiseExtractor:
         print(f"Residual Noise Extractor (kernel={kernel_size}, sigma={sigma})")
     
     def extract(self, image):
-        """
-        Ekstrak residual noise dari gambar
-        
-        Args:
-            image: torch tensor (C, H, W) - sudah normalized [-1, 1]
-        
-        Returns:
-            residual: residual noise dalam format yang sama
-        """
+
         is_tensor = isinstance(image, torch.Tensor)
         
         if is_tensor:
@@ -59,15 +51,7 @@ class ResidualNoiseExtractor:
         return residual
     
     def extract_batch(self, batch):
-        """
-        Ekstrak residual noise dari batch tensor
-        
-        Args:
-            batch: torch tensor (B, C, H, W)
-        
-        Returns:
-            residuals: torch tensor (B, C, H, W)
-        """
+
         residuals = []
         
         for i in range(batch.size(0)):
@@ -90,15 +74,7 @@ class DCTExtractor:
         return dct_block
     
     def extract(self, image):
-        """
-        Ekstrak DCT coefficients dari gambar
-        
-        Args:
-            image: torch tensor (C, H, W) - residual noise normalized
-        
-        Returns:
-            dct_image: DCT coefficients normalized ke [-1, 1]
-        """
+
         is_tensor = isinstance(image, torch.Tensor)
         
         if is_tensor:
@@ -165,15 +141,7 @@ class DCTExtractor:
         return dct_image
     
     def extract_batch(self, batch):
-        """
-        Ekstrak DCT dari batch tensor
-        
-        Args:
-            batch: torch tensor (B, C, H, W)
-        
-        Returns:
-            dct_batch: torch tensor (B, C, H, W)
-        """
+
         dct_results = []
         
         for i in range(batch.size(0)):
@@ -183,54 +151,9 @@ class DCTExtractor:
         return torch.stack(dct_results)
 
 
-class FeatureFusionDataset:
-    """
-    Dataset wrapper untuk fusion model
-    
-    Menghasilkan 3 input: RGB, Residual Spatial, DCT
-    """
-    
-    def __init__(self, base_dataset, config):
-        self.base_dataset = base_dataset
-        self.config = config
-        
-        # Extractors
-        self.residual_extractor = ResidualNoiseExtractor(
-            kernel_size=config.RESIDUAL_SPATIAL_KERNEL_SIZE,
-            sigma=config.RESIDUAL_SPATIAL_SIGMA
-        )
-        
-        self.dct_extractor = DCTExtractor(
-            block_size=config.DCT_BLOCK_SIZE
-        )
-        
-        print("Feature Fusion Dataset created")
-    
-    def __len__(self):
-        return len(self.base_dataset)
-    
-    def __getitem__(self, idx):
-        # Get original RGB image dan label
-        rgb_image, label = self.base_dataset[idx]
-        
-        # Ekstrak residual noise
-        residual_image = self.residual_extractor.extract(rgb_image)
-        
-        # Ekstrak DCT dari residual
-        dct_image = self.dct_extractor.extract(residual_image)
-        
-        return {
-            'rgb': rgb_image,
-            'residual': residual_image,
-            'dct': dct_image,
-            'label': label
-        }
-
 
 def visualize_features(rgb, residual, dct, save_path):
-    """
-    Visualisasi perbandingan RGB, Residual, dan DCT
-    """
+
     import matplotlib.pyplot as plt
     
     # Convert tensor ke numpy untuk visualisasi
@@ -293,16 +216,6 @@ def get_feature_extractor(method, config):
         return {
             'residual': residual_extractor,
             'dct': dct_extractor
-        }
-    
-    elif method == 'fusion':
-        # Fusion butuh semua extractors
-        return {
-            'residual': ResidualNoiseExtractor(
-                kernel_size=config.RESIDUAL_SPATIAL_KERNEL_SIZE,
-                sigma=config.RESIDUAL_SPATIAL_SIGMA
-            ),
-            'dct': DCTExtractor(block_size=config.DCT_BLOCK_SIZE)
         }
     
     else:

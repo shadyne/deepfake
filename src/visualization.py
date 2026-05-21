@@ -278,11 +278,7 @@ def plot_score_distribution(y_true, y_scores, method_name, save_dir, config):
 
 
 def plot_comprehensive_metrics(y_true, y_pred, y_scores, method_name, save_dir, config):
-    """
-    Generate all visualization plots separately
-    Returns AUC score
-    """
-    
+
     print(f"\n{'='*70}")
     print(f"GENERATING VISUALIZATIONS - {method_name.upper()}".center(70))
     print(f"{'='*70}")

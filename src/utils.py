@@ -201,7 +201,6 @@ def print_method_info(method_name, config):
         'baseline': 'Standard Xception with RGB input',
         'residual_spatial': 'Xception with Residual Noise extraction (Spatial Domain)',
         'residual_dct': 'Xception with DCT coefficients from Residual Noise',
-        'fusion': 'Multi-stream fusion combining RGB, Residual, and DCT features'
     }
     
     print("\n" + "="*70)

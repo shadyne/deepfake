@@ -37,11 +37,6 @@ def evaluate_model(model, dataloader, config, method, feature_extractor=None, ve
                 dct_images = feature_extractor['dct'].extract_batch(residual_images)
                 outputs = model(dct_images)
             
-            elif method == 'fusion':
-                residual_images = feature_extractor['residual'].extract_batch(images)
-                dct_images = feature_extractor['dct'].extract_batch(residual_images)
-                outputs = model(images, residual_images, dct_images)
-            
             # Loss
             loss = criterion(outputs, labels)
             losses.update(loss.item(), images.size(0))
@@ -203,9 +198,7 @@ def evaluate_all_splits(model, train_loader, val_loader, test_loader, config,
     
     # Evaluate on each split
     for split_name, loader in [('train', train_loader), ('val', val_loader), ('test', test_loader)]:
-        print(f"\n{'â”€'*70}")
         print(f"{split_name.upper()} SET".center(70))
-        print(f"{'â”€'*70}")
         
         results = evaluate_model(model, loader, config, method, feature_extractor, verbose=True)
         

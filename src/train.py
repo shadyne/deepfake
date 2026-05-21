@@ -181,62 +181,6 @@ def train_epoch_residual_dct(model, dataloader, criterion, optimizer, device,
     return losses.avg, 100. * correct / total
 
 
-def train_epoch_fusion(model, dataloader, criterion, optimizer, device,
-                       epoch, config, extractors, scaler=None):
-    model.train()
-    use_amp = getattr(config, 'USE_AMP', False) and scaler is not None
-
-    residual_extractor = extractors['residual']
-    dct_extractor      = extractors['dct']
-
-    losses  = AverageMeter()
-    correct = 0
-    total   = 0
-
-    pbar = tqdm(dataloader, desc=f'Epoch {epoch}/{config.NUM_EPOCHS} [Train]')
-
-    for images, labels in pbar:
-        images, labels = images.to(device, non_blocking=True), \
-                         labels.to(device, non_blocking=True)
-
-        residual_images = residual_extractor.extract_batch(images)
-        dct_images      = dct_extractor.extract_batch(residual_images)
-
-        optimizer.zero_grad(set_to_none=True)
-
-        if use_amp:
-            with autocast():
-                outputs = model(images, residual_images, dct_images)
-                loss    = criterion(outputs, labels)
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(
-                model.parameters(), getattr(config, 'GRADIENT_CLIP', 1.0)
-            )
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            outputs = model(images, residual_images, dct_images)
-            loss    = criterion(outputs, labels)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(
-                model.parameters(), getattr(config, 'GRADIENT_CLIP', 1.0)
-            )
-            optimizer.step()
-
-        losses.update(loss.item(), images.size(0))
-        _, predicted = outputs.max(1)
-        total   += labels.size(0)
-        correct += predicted.eq(labels).sum().item()
-
-        pbar.set_postfix({
-            'loss': f'{losses.avg:.4f}',
-            'acc':  f'{100.*correct/total:.2f}%',
-            'lr':   f'{get_lr(optimizer):.6f}',
-            'vram': _vram_str()
-        })
-
-    return losses.avg, 100. * correct / total
 
 def plot_epoch_progress(history, epoch, method, save_dir):
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -394,11 +338,6 @@ def train_model(model, train_loader, val_loader, test_loader,
                 )
             elif method == 'residual_dct':
                 train_loss, train_acc = train_epoch_residual_dct(
-                    model, train_loader, criterion, optimizer,
-                    config.DEVICE, epoch, config, feature_extractor, scaler
-                )
-            elif method == 'fusion':
-                train_loss, train_acc = train_epoch_fusion(
                     model, train_loader, criterion, optimizer,
                     config.DEVICE, epoch, config, feature_extractor, scaler
                 )

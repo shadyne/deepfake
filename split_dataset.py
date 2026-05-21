@@ -1,5 +1,4 @@
 
-
 import os
 import random
 import shutil
@@ -7,262 +6,344 @@ from tqdm import tqdm
 import json
 from datetime import datetime
 
-IMSFD_DIR = r"D:\DEEP FAKE\data\IMSFD"
-DEEPFAKE_DIR = r"D:\DEEP FAKE\data\IMSFD_DeepFake"
+IMSFD_DIR    = r"D:\Project\deepfake\data\IMSFD"
+DEEPFAKE_DIR = r"D:\Project\deepfake\data\IMSFD_DeepFake"
+DEST_DIR     = "data"
 
-DEST_DIR = r"data"
+SPLIT_RATIO = {"train": 0.70, "val": 0.15, "test": 0.15}
 
-SPLIT_RATIO = {
-    "train": 0.70,
-    "val":   0.15,
-    "test":  0.15
-}
-
-
-MAX_PER_SUBJECT = None
-
-MAX_TOTAL_REAL = None
-
-RANDOM_SEED = 42
-
-IMG_EXT = ('.jpg', '.jpeg', '.png', '.bmp', '.webp')
+MAX_PER_SUBJECT = None   # None = pakai semua foto
+RANDOM_SEED     = 42
+IMG_EXT         = ('.jpg', '.jpeg', '.png', '.bmp', '.webp')
 
 
+def collect_subjects(imsfd_dir, max_per_subject=None):
 
-def collect_imsfd_images(imsfd_dir, max_per_subject=None):
-
-    all_images = []
-    subject_stats = {}
+    subjects = {}
 
     if not os.path.exists(imsfd_dir):
-        raise FileNotFoundError(f"Folder IMSFD tidak ditemukan: {imsfd_dir}")
+        print(f"\n[ERROR] Folder IMSFD tidak ditemukan: {imsfd_dir}")
+        print("  Pastikan IMSFD_DIR sudah benar!")
+        return {}
 
-    grup_folders = sorted([
+    grup_list = sorted([
         d for d in os.listdir(imsfd_dir)
         if os.path.isdir(os.path.join(imsfd_dir, d))
     ])
 
-    print(f"\nFolder grup ditemukan: {grup_folders}")
+    if not grup_list:
+        print(f"\n[ERROR] Tidak ada subfolder di: {imsfd_dir}")
+        return {}
 
-    for grup in grup_folders:
+    print(f"  Grup ditemukan : {grup_list}")
+
+    for grup in grup_list:
         grup_path = os.path.join(imsfd_dir, grup)
-
         subfolders = os.listdir(grup_path)
-        has_split = any(s.lower() in ['training', 'testing'] for s in subfolders)
 
-        if has_split:
-            split_dirs = [
-                os.path.join(grup_path, s)
-                for s in subfolders
-                if os.path.isdir(os.path.join(grup_path, s))
-            ]
-        else:
-            split_dirs = [grup_path]
+        has_split = any(
+            s.lower() in ['training', 'testing']
+            for s in subfolders
+            if os.path.isdir(os.path.join(grup_path, s))
+        )
 
-        for split_dir in split_dirs:
-            if not os.path.isdir(split_dir):
-                continue
+        candidate_dirs = (
+            [os.path.join(grup_path, s)
+             for s in subfolders
+             if os.path.isdir(os.path.join(grup_path, s))]
+            if has_split else [grup_path]
+        )
 
-            subject_dirs = [
-                d for d in os.listdir(split_dir)
-                if os.path.isdir(os.path.join(split_dir, d))
-            ]
+        for cand_dir in candidate_dirs:
+            for subject_id in os.listdir(cand_dir):
+                subject_path = os.path.join(cand_dir, subject_id)
+                if not os.path.isdir(subject_path):
+                    continue
 
-            for subject_id in subject_dirs:
-                subject_path = os.path.join(split_dir, subject_id)
-                images_in_subject = []
-
+                images = []
                 for root, _, files in os.walk(subject_path):
                     for f in files:
                         if f.lower().endswith(IMG_EXT):
-                            images_in_subject.append(
-                                (os.path.join(root, f), subject_id)
-                            )
+                            images.append(os.path.join(root, f))
 
-                if max_per_subject and len(images_in_subject) > max_per_subject:
-                    images_in_subject = random.sample(images_in_subject, max_per_subject)
+                if not images:
+                    continue
 
-                all_images.extend(images_in_subject)
-
-                key = f"{grup}/{subject_id}"
-                subject_stats[key] = subject_stats.get(key, 0) + len(images_in_subject)
-
-    return all_images, subject_stats
+                if max_per_subject and len(images) > max_per_subject:
+                    images = random.sample(images, max_per_subject)
 
 
-def collect_deepfake_images(deepfake_dir):
+                key = f"{grup}__{subject_id}"
 
-    all_images = []
+                if key in subjects:      
+                    subjects[key].extend(images)
+                else:
+                    subjects[key] = images
 
-    if not deepfake_dir or not os.path.exists(deepfake_dir):
-        print(f"\n[WARNING] Folder deepfake tidak ditemukan: {deepfake_dir}")
-        print("Lanjutkan hanya dengan data real (belum bisa training)")
-        return []
+    return subjects
 
-    for root, _, files in os.walk(deepfake_dir):
-        for f in files:
-            if f.lower().endswith(IMG_EXT):
-                all_images.append(os.path.join(root, f))
+def split_subjects(subjects, split_ratio, random_seed=42):
+    all_keys = sorted(subjects.keys())
+    rng = random.Random(random_seed)
+    rng.shuffle(all_keys)
 
-    return all_images
+    n       = len(all_keys)
+    n_train = int(n * split_ratio['train'])
+    n_val   = round(n * split_ratio['val'])  
+    n_test  = n - n_train - n_val
 
+    if n >= 3:
+        n_train = max(1, n_train)
+        n_val   = max(1, n_val)
+        n_test  = n - n_train - n_val
 
-def split_and_copy(image_list, label, dest_dir, split_ratio, desc=""):
-
-    random.shuffle(image_list)
-    total = len(image_list)
-
-    train_end = int(total * split_ratio['train'])
-    val_end   = train_end + int(total * split_ratio['val'])
-
-    splits = {
-        'train': image_list[:train_end],
-        'val':   image_list[train_end:val_end],
-        'test':  image_list[val_end:]
+    split_map = {
+        'train': all_keys[:n_train],
+        'val':   all_keys[n_train : n_train + n_val],
+        'test':  all_keys[n_train + n_val :],
     }
 
+    print(f"\n  Pembagian subjek (total {n}):")
+    for name, keys in split_map.items():
+        n_imgs = sum(len(subjects[k]) for k in keys)
+        print(f"    {name:<8}: {len(keys):>4} subjek  |  {n_imgs:>7,} gambar")
+
+    return split_map
+
+def copy_real_images(subjects, split_map, dest_dir):
     stats = {}
-    for split_name, files in splits.items():
-        split_dir = os.path.join(dest_dir, split_name, label)
-        os.makedirs(split_dir, exist_ok=True)
+
+    for split_name, subject_keys in split_map.items():
+        out_dir = os.path.join(dest_dir, split_name, 'real')
+        os.makedirs(out_dir, exist_ok=True)
+
+        if not subject_keys:
+            print(f"  [WARNING] {split_name}: tidak ada subjek yang di-assign!")
+            stats[split_name] = 0
+            continue
 
         copied = 0
-        name_counter = {}
+        failed = 0
 
-        for item in tqdm(files, desc=f"  {desc} [{split_name}]"):
-            src = item[0] if isinstance(item, tuple) else item
-            base_name = os.path.basename(src)
+        for key in tqdm(subject_keys, desc=f"  REAL [{split_name}]"):
+            if key not in subjects:
+                print(f"\n  [BUG] Key tidak ada di subjects: {key!r}")
+                continue
 
-            if base_name in name_counter:
-                name_counter[base_name] += 1
-                name, ext = os.path.splitext(base_name)
-                base_name = f"{name}_{name_counter[base_name]}{ext}"
-            else:
-                name_counter[base_name] = 0
+            safe_key = key.replace(os.sep, '_').replace('/', '_').replace('\\', '_')
 
-            dst = os.path.join(split_dir, base_name)
+            for src_path in subjects[key]:
+                if not os.path.isfile(src_path):
+                    failed += 1
+                    continue
 
-            try:
-                shutil.copy2(src, dst)
-                copied += 1
-            except Exception as e:
-                print(f"  [ERROR] Gagal copy {src}: {e}")
+                filename  = f"{safe_key}__{os.path.basename(src_path)}"
+                dst_path  = os.path.join(out_dir, filename)
+
+                try:
+                    shutil.copy2(src_path, dst_path)
+                    copied += 1
+                except Exception as e:
+                    failed += 1
+                    print(f"\n  [ERROR] Gagal copy {src_path}: {e}")
+
+        actual = len([
+            f for f in os.listdir(out_dir)
+            if f.lower().endswith(IMG_EXT)
+        ])
+        ok = "[OK]" if actual == copied else "tidak sesuai"
+        print(f"  {split_name}/real : {copied:,} disalin  |  {failed} gagal  |"
+              f"  di folder: {actual:,}  [{ok}]")
 
         stats[split_name] = copied
 
     return stats
 
 
-def print_summary(real_stats, fake_stats, subject_stats):
-    """Print ringkasan hasil split"""
-    print("\n" + "=" * 65)
-    print("RINGKASAN SPLIT DATASET".center(65))
-    print("=" * 65)
+def copy_fake_images(deepfake_dir, dest_dir, split_ratio, random_seed=42):
 
-    total_real = sum(real_stats.values())
-    total_fake = sum(fake_stats.values())
+    if not deepfake_dir or not os.path.exists(deepfake_dir):
+        print(f"\n  [INFO] Folder fake tidak ada: {deepfake_dir}")
+        print("  Jalankan generate_deepfake.py dulu.")
+        return {'train': 0, 'val': 0, 'test': 0}
 
-    print(f"\n{'Split':<10} {'Real':>10} {'Fake':>10} {'Total':>10}")
-    print("-" * 45)
-    for split in ['train', 'val', 'test']:
-        r = real_stats.get(split, 0)
-        f = fake_stats.get(split, 0)
-        print(f"{split:<10} {r:>10,} {f:>10,} {r+f:>10,}")
-    print("-" * 45)
-    print(f"{'TOTAL':<10} {total_real:>10,} {total_fake:>10,} {total_real+total_fake:>10,}")
+    fakes = []
+    for root, _, files in os.walk(deepfake_dir):
+        for f in files:
+            if f.lower().endswith(IMG_EXT):
+                fakes.append(os.path.join(root, f))
 
-    print(f"\nJumlah subjek unik: {len(subject_stats)}")
-    print(f"Rata-rata foto/subjek: {total_real/len(subject_stats):.1f}" if subject_stats else "")
+    if not fakes:
+        print("  [INFO] Tidak ada gambar fake ditemukan.")
+        return {'train': 0, 'val': 0, 'test': 0}
 
-    if total_fake == 0:
-        print("\n[!] PERHATIAN: Belum ada data FAKE!")
-        print("    Jalankan generate_deepfake.py terlebih dahulu,")
-        print("    lalu jalankan split_dataset.py ini kembali.")
+    print(f"  Total fake: {len(fakes):,}")
 
-    print("=" * 65)
+    rng = random.Random(random_seed)
+    rng.shuffle(fakes)
 
+    n       = len(fakes)
+    n_train = int(n * split_ratio['train'])
+    n_val   = round(n * split_ratio['val'])
 
-def save_metadata(dest_dir, real_stats, fake_stats, subject_stats, config_used):
-    """Simpan metadata split ke JSON untuk referensi"""
-    meta = {
-        'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'config': config_used,
-        'real_stats': real_stats,
-        'fake_stats': fake_stats,
-        'num_subjects': len(subject_stats),
-        'subject_distribution': subject_stats
+    buckets = {
+        'train': fakes[:n_train],
+        'val':   fakes[n_train : n_train + n_val],
+        'test':  fakes[n_train + n_val :],
     }
-    meta_path = os.path.join(dest_dir, 'dataset_metadata.json')
-    with open(meta_path, 'w') as f:
-        json.dump(meta, f, indent=4)
-    print(f"\nMetadata tersimpan: {meta_path}")
 
+    stats = {}
+    for split_name, files in buckets.items():
+        out_dir = os.path.join(dest_dir, split_name, 'fake')
+        os.makedirs(out_dir, exist_ok=True)
+        copied = 0
+
+        for idx, src_path in enumerate(tqdm(files, desc=f"  FAKE [{split_name}]")):
+            if not os.path.isfile(src_path):
+                continue
+            filename = f"fake_{idx:07d}__{os.path.basename(src_path)}"
+            dst_path = os.path.join(out_dir, filename)
+            try:
+                shutil.copy2(src_path, dst_path)
+                copied += 1
+            except Exception as e:
+                print(f"\n  [ERROR] {src_path}: {e}")
+
+        actual = len([f for f in os.listdir(out_dir) if f.lower().endswith(IMG_EXT)])
+        print(f"  {split_name}/fake : {copied:,} disalin  |  di folder: {actual:,}")
+        stats[split_name] = copied
+
+    return stats
+
+
+def balance_splits(dest_dir, random_seed=42):
+    rng = random.Random(random_seed)
+
+    for split in ['train', 'val', 'test']:
+        real_dir = os.path.join(dest_dir, split, 'real')
+        fake_dir = os.path.join(dest_dir, split, 'fake')
+
+        if not (os.path.exists(real_dir) and os.path.exists(fake_dir)):
+            continue
+
+        real_files = [f for f in os.listdir(real_dir) if f.lower().endswith(IMG_EXT)]
+        fake_files = [f for f in os.listdir(fake_dir) if f.lower().endswith(IMG_EXT)]
+
+        n_real, n_fake = len(real_files), len(fake_files)
+        if n_real == 0 or n_fake == 0 or n_real == n_fake:
+            continue
+
+        if n_real > n_fake:
+            excess, excess_dir = rng.sample(real_files, n_real - n_fake), real_dir
+        else:
+            excess, excess_dir = rng.sample(fake_files, n_fake - n_real), fake_dir
+
+        for f in excess:
+            os.remove(os.path.join(excess_dir, f))
+
+        kept = min(n_real, n_fake)
+        print(f"  [{split}] balanced → {kept:,} real | {kept:,} fake")
+
+
+def count_final(dest_dir):
+    counts = {}
+    for split in ['train', 'val', 'test']:
+        counts[split] = {}
+        for cls in ['real', 'fake']:
+            d = os.path.join(dest_dir, split, cls)
+            counts[split][cls] = (
+                len([f for f in os.listdir(d) if f.lower().endswith(IMG_EXT)])
+                if os.path.exists(d) else 0
+            )
+    return counts
+
+
+def print_summary(counts, split_map):
+    print("\n" + "=" * 65)
+    print("HASIL AKHIR SPLIT DATASET".center(65))
+    print("=" * 65)
+    print(f"\n  {'Split':<10} {'Real':>8} {'Fake':>8} {'Total':>8} {'Subjek':>8}")
+    print("  " + "-" * 45)
+    for split in ['train', 'val', 'test']:
+        r = counts[split].get('real', 0)
+        f = counts[split].get('fake', 0)
+        s = len(split_map.get(split, []))
+        print(f"  {split:<10} {r:>8,} {f:>8,} {r+f:>8,} {s:>8}")
+    print("=" * 65)
+    print("\n  ✓ Setiap subjek hanya ada di SATU split (tidak ada identity leakage)")
+    no_fake = any(counts[s]['fake'] == 0 for s in ['train','val','test'])
+    if no_fake:
+        print("Fake belum tersedia. Jalankan generate_deepfake.py lalu ulang script ini.")
 
 def main():
     random.seed(RANDOM_SEED)
 
     print("=" * 65)
-    print("IMSFD DATASET SPLITTER".center(65))
+    print("IMSFD DATASET SPLITTER  (FIXED v3)".center(65))
     print("=" * 65)
-    print(f"\nSource IMSFD : {IMSFD_DIR}")
-    print(f"Source Fake  : {DEEPFAKE_DIR}")
-    print(f"Destination  : {DEST_DIR}")
-    print(f"Split Ratio  : train={SPLIT_RATIO['train']:.0%} | "
-          f"val={SPLIT_RATIO['val']:.0%} | test={SPLIT_RATIO['test']:.0%}")
+    print(f"\n  IMSFD_DIR    : {IMSFD_DIR}")
+    print(f"  DEEPFAKE_DIR : {DEEPFAKE_DIR}")
+    print(f"  DEST_DIR     : {DEST_DIR}")
+    print(f"  Strategy     : Subject-level split (no identity leakage)")
 
-    print("\n[1/4] Mengumpulkan gambar REAL dari IMSFD...")
-    real_images, subject_stats = collect_imsfd_images(
-        IMSFD_DIR,
-        max_per_subject=MAX_PER_SUBJECT
-    )
-    print(f"      Total gambar real ditemukan: {len(real_images):,}")
-    print(f"      Total subjek unik          : {len(subject_stats):,}")
+    print("\n" + "─" * 65)
+    print("[1/5] Scanning IMSFD ...")
+    subjects = collect_subjects(IMSFD_DIR, max_per_subject=MAX_PER_SUBJECT)
 
-    if MAX_TOTAL_REAL and len(real_images) > MAX_TOTAL_REAL:
-        real_images = random.sample(real_images, MAX_TOTAL_REAL)
-        print(f"      Dibatasi ke: {len(real_images):,} gambar")
+    if not subjects:
+        print("\n[ABORT] Tidak ada subjek. Cek IMSFD_DIR!")
+        return
 
-    print("\n[2/4] Mengumpulkan gambar FAKE (deepfake)...")
-    fake_images = collect_deepfake_images(DEEPFAKE_DIR)
-    print(f"      Total gambar fake ditemukan: {len(fake_images):,}")
+    total_real = sum(len(v) for v in subjects.values())
+    print(f"{len(subjects):,} subjek  |  {total_real:,} gambar real")
 
-    if fake_images and len(real_images) != len(fake_images):
-        min_count = min(len(real_images), len(fake_images))
-        print(f"\n      Balancing dataset: ambil {min_count:,} dari masing-masing kelas")
-        real_images = random.sample(real_images, min_count)
-        fake_images = random.sample(fake_images, min_count)
+    print("\n" + "─" * 65)
+    print("[2/5] Membagi subjek ...")
+    split_map = split_subjects(subjects, SPLIT_RATIO, random_seed=RANDOM_SEED)
 
-    print("\n[3/4] Membuat struktur folder output...")
+    print("\n" + "─" * 65)
+    print("[3/5] Membuat folder output ...")
     for split in SPLIT_RATIO:
         for cls in ['real', 'fake']:
             os.makedirs(os.path.join(DEST_DIR, split, cls), exist_ok=True)
-    print(f"      Folder output: {os.path.abspath(DEST_DIR)}")
+    print(f"  Folder: {os.path.abspath(DEST_DIR)}")
 
-    print("\n[4/4] Split dan copy gambar...")
+    print("\n" + "─" * 65)
+    print("[4/5] Menyalin gambar REAL ...")
+    copy_real_images(subjects, split_map, DEST_DIR)
 
-    print("\n Memproses data REAL:")
-    real_stats = split_and_copy(real_images, 'real', DEST_DIR, SPLIT_RATIO, desc="REAL")
+    print("\n" + "─" * 65)
+    print("[5/5] Menyalin gambar FAKE ...")
+    copy_fake_images(DEEPFAKE_DIR, DEST_DIR, SPLIT_RATIO, random_seed=RANDOM_SEED)
 
-    fake_stats = {'train': 0, 'val': 0, 'test': 0}
-    if fake_images:
-        print("\n Memproses data FAKE:")
-        fake_stats = split_and_copy(fake_images, 'fake', DEST_DIR, SPLIT_RATIO, desc="FAKE")
+    print("\n" + "─" * 65)
+    print("Balancing ...")
+    balance_splits(DEST_DIR, random_seed=RANDOM_SEED)
 
-    print_summary(real_stats, fake_stats, subject_stats)
+    counts = count_final(DEST_DIR)
+    print_summary(counts, split_map)
 
-    config_used = {
-        'imsfd_dir': IMSFD_DIR,
-        'deepfake_dir': DEEPFAKE_DIR,
-        'dest_dir': DEST_DIR,
-        'split_ratio': SPLIT_RATIO,
-        'max_per_subject': MAX_PER_SUBJECT,
-        'max_total_real': MAX_TOTAL_REAL,
-        'random_seed': RANDOM_SEED
+    meta = {
+        'created_at':     datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'split_strategy': 'subject-level v3',
+        'config': {
+            'imsfd_dir':    IMSFD_DIR,
+            'deepfake_dir': DEEPFAKE_DIR,
+            'dest_dir':     DEST_DIR,
+            'split_ratio':  SPLIT_RATIO,
+            'random_seed':  RANDOM_SEED,
+        },
+        'subjects': {
+            'total': len(subjects),
+            'subject_keys': {k: list(v) for k, v in split_map.items()},
+        },
+        'counts': counts,
     }
-    save_metadata(DEST_DIR, real_stats, fake_stats, subject_stats, config_used)
-
-    print("\nDataset berhasil di-split!")
-    print(f"Selanjutnya jalankan: python main.py\n")
+    meta_path = os.path.join(DEST_DIR, 'dataset_metadata.json')
+    with open(meta_path, 'w') as f:
+        json.dump(meta, f, indent=4)
+    print(f"\n  Metadata: {meta_path}")
+    print("  Selanjutnya: python generate_deepfake.py\n")
 
 
 if __name__ == '__main__':

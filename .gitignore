@@ -1,5 +1,6 @@
 # Mengabaikan folder dataset
 /data/
+/IMSFD_DeepFake/
 
 # Mengabaikan folder model AI (biasanya ukurannya ratusan MB hingga GB)
 /saved_models/
@@ -16,3 +17,7 @@ __pycache__/
 
 # Mengabaikan file environment/konfigurasi rahasia (jika nanti kamu buat)
 .env
+
+/venv/
+
+.vscode

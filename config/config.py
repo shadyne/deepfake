@@ -60,14 +60,6 @@ class Config:
     NORMALIZE_RESIDUAL = True
     NORMALIZE_DCT = True
     
-    # Fusion configuration
-    FUSION_TYPE = 'concat'
-    FUSION_WEIGHTS = {
-        'rgb': 0.4,
-        'residual': 0.3,
-        'dct': 0.3
-    }
-    
     # Evaluation settings
     SAVE_CONFUSION_MATRIX = True
     SAVE_ROC_CURVE = True
@@ -156,10 +148,3 @@ class ResidualDCTConfig(Config):
     """Configuration for residual DCT model"""
     METHOD_NAME = 'residual_dct'
     DESCRIPTION = 'Xception with DCT coefficients from Residual Noise'
-
-
-class FusionConfig(Config):
-    """Configuration for fusion model"""
-    METHOD_NAME = 'fusion'
-    DESCRIPTION = 'Multi-stream Fusion (RGB + Residual + DCT)'
-    REQUIRED_MODELS = ['baseline', 'residual_spatial', 'residual_dct']

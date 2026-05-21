@@ -196,7 +196,7 @@ def verify_dataset_structure(config):
             all_ok = False
 
     if not all_ok:
-        print("\n  [!] Dataset belum lengkap!")
+        print("\n Dataset belum lengkap!")
         print("  Langkah yang perlu dilakukan:")
         print("  1. Pastikan IMSFD_DIR di split_dataset.py sudah benar")
         print("  2. Jalankan: python generate_deepfake.py")
