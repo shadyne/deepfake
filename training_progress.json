@@ -1,4 +1,8 @@
 {
-    "completed_methods": [],
-    "last_run": "2026-05-21 17:43:20"
+    "completed_methods": [
+        "baseline",
+        "residual_spatial",
+        "residual_dct"
+    ],
+    "last_run": "2026-05-22 10:32:33"
 }
