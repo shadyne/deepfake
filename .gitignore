@@ -9,7 +9,6 @@ saved_models/
 *.onnx
 *.ckpt
 
-output/
 training_progress.json
 
 logs/
